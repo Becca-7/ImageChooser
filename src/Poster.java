@@ -1,43 +1,41 @@
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.net.*;
+import java.util.Arrays;
 import java.util.Scanner;
+
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
+
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.HashSet;
 
 
 public class Poster {
-    String keyword;
+    String chosenWord = "spring";
     ArrayList<Integer> imageX = new ArrayList<Integer>();
     ArrayList<String> tagOptions = new ArrayList<String>();
+    HashSet<String> tagOptionsHash = new HashSet<String>();
+    public JSONArray jsonArray;
+    public String chosenLink;
+    JFrame mainFrame = new JFrame("Button Grid Example");
+    public boolean linkpage=false;
+    JPanel buttonPanel;
 
-
-    public JLabel imageLabel;
-    public JPanel imagePanel;
-    public JFrame mainFrame;
-    public  String ImageURL = "https://pixabay.com/api/?key=43557578-57d8c196d378af42f9843db80&id=8719633";
-    //NEED TO CHANGE THIS TO A DEFAULT? IDK IT WON"T WORK EVERY DAY
-
-
-    public Image theImage;
     public static void main(String[] args) {
         Poster poster = new Poster();
-        JFrame frame = new JFrame("My Window");
-        frame.setSize(700, 850);
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setVisible(true);
-//        Poster.addImage();
     }
 
-
-    public Poster(){
+    public Poster() {
+        linkpage=false;
+        mainFrame.setSize(700, 850);
         try {
             URL url = new URL("https://pixabay.com/api/?key=43557578-57d8c196d378af42f9843db80&image_type=photo&per_page=200&page=1");
             HttpURLConnection httpConn = (HttpURLConnection) url.openConnection();
@@ -48,143 +46,134 @@ public class Poster {
                     : httpConn.getErrorStream();
             Scanner s = new Scanner(responseStream).useDelimiter("\\A");
             String response = s.hasNext() ? s.next() : "";
-            // System.out.println(response);
 
             JSONParser parser = new JSONParser();
-            //System.out.println(str);
             JSONObject jsonObject = (JSONObject) parser.parse(response);
-            JSONArray jsonArray = (JSONArray) jsonObject.get("hits");
-            //System.out.println(jsonArray);
+            jsonArray = (JSONArray) jsonObject.get("hits");
 
-            String searchTerm = "spring";
-            int n=jsonArray.size();
-            for (int x=0;x<n;x++){
-                // remove everyhing from imageID
-                JSONObject image = (JSONObject)jsonArray.get(x);
-                long id = (long)image.get("id");
-                String tags = (String) image.get("tags");
-//MAKE A STRING TO STORE THE IMAGE URL ADN THEN TAKE THAT ONE DOWN AS THE URL
-                if(tags.contains(searchTerm)){
-                    System.out.println("id: "+id);
-                    System.out.println("tags: "+tags);
-                    System.out.println(x);
-                    imageX.add(x);
-                }
-            }
-           int imageInArray=(int)(Math.random()*imageX.size());
-            int chosenImageX = imageX.get(imageInArray);
-            System.out.println("chosen X: " + chosenImageX);
+            tagAdd();
+            buttonCreater();
+            mainFrame.setVisible(true);
 
-            JSONObject ChosenImage = (JSONObject)jsonArray.get(chosenImageX);
-            String link = (String) ChosenImage.get("largeImageURL");
-
-             ImageURL = link;
-            System.out.println(ImageURL);
-//            theImage = fetchImage(ImageURL);
-        //    fetchImage(ImageURL);
-
-            boolean isInArrayList;
-            for (int x=0;x<n;x++) {
-                JSONObject image = (JSONObject) jsonArray.get(x);
-                String tags = (String) image.get("tags");
-//                System.out.println(tags);
-
-                String[] miniArray = tags.split(", ", 5);
-
-
-                isInArrayList = false;
-                for (int y = 0; y < miniArray.length; y++) {
-                    if (tagOptions.contains(miniArray[y]) || tagOptions.contains(" " + miniArray[y])) {
-                        isInArrayList = true;
-                    }
-                    if (isInArrayList == false) {
-                        tagOptions.add(miniArray[y]);
-                    }
-                }
-            }
-                System.out.println(tagOptions.size());
-                //ISSUE OF THE MOMENT: the size is only 3? im confused. also trying to add array of buttons to match the tags
-
-               // adding an array of buttons to the mainframe
-                int rows=tagOptions.size()/5;
-                int cols=tagOptions.size()/5;
-
-                JPanel buttonPanel=new JPanel(new GridLayout(rows, cols));
-                for(int i=1;i<=rows;i++)
-                {
-                    for(int j=1;j<=cols;j++)
-                    {
-                        JButton btn=new JButton(String.valueOf(i));
-                        buttonPanel.add(btn);
-                    }
-                }
-                mainFrame.add(buttonPanel);
-
-
-
-            System.out.println(tagOptions);
-
-
-
-
-
-
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
-
-
-
     }
 
-    //the fetchImage method came from ChatGPT because I didn't know how to get an image from a URL
-    private void fetchImage(String imageUrl) {
+
+    //when a button is pressed it finds the tag and then sends that value to the link grabber
+    //opens the link to the page immediately when the button is pressed
+    private class ButtonClickListener implements ActionListener {
+        public void actionPerformed(ActionEvent e) {
+            String command = e.getActionCommand();
+            linkpage=true;
+            System.out.println(linkpage);
+            for (int x = 0; x < tagOptions.size(); x++) {
+                if (command.equals(tagOptions.get(x))) {
+                    chosenWord = tagOptions.get(x);
+                    linkGrabber();
+                }
+            }
+            URL temp = null;
+            try {
+                temp = new URL(chosenLink);
+            } catch (MalformedURLException ex) {
+                throw new RuntimeException(ex);
+            }
+            openWebpage(temp);
+        }
+    }
+
+    //the following two methods are adapted from the web to fit my project.
+    // They are not my work but are adapted to help my work
+    //Immediately opens the webpage when the button is pressed
+    public boolean openWebpage(URI uri) {
+        Desktop desktop = Desktop.isDesktopSupported() ? Desktop.getDesktop() : null;
+        if (desktop != null && desktop.isSupported(Desktop.Action.BROWSE)) {
+            try {
+                desktop.browse(uri);
+                return true;
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        return false;
+    }
+    public boolean openWebpage(URL url) {
         try {
-            URL url = new URL(imageUrl);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("GET");
-
-            InputStream inputStream = connection.getInputStream();
-            BufferedImage bufferedImage = ImageIO.read(inputStream);
-            inputStream.close();
-
-//            return bufferedImage;
-
-            ImageIcon inputImage;
-            if (bufferedImage != null) {
-                inputImage = new ImageIcon(bufferedImage.getScaledInstance(800, 700, Image.SCALE_SMOOTH));
-                if (bufferedImage != null) {
-                    imageLabel = new JLabel(inputImage);
-                } else {
-                    System.out.println("oh no");
-                }
-                imagePanel.removeAll();
-                imagePanel.repaint();
-                imagePanel.add(imageLabel);
-                mainFrame.add(imagePanel, BorderLayout.CENTER);
-
-            }
-            else{
-                System.out.println("buffered image is null?");
-            }
-
-        } catch (IOException e) {
+            return openWebpage(url.toURI());
+        } catch (URISyntaxException e) {
             e.printStackTrace();
-//            return null;
         }
+        return false;
     }
 
+    //grabs the link related to a given tag when the button is pressed
+    public String linkGrabber(){
+        System.out.println("chosen word: " + chosenWord);
+        for (int x = 0; x < jsonArray.size(); x++) {
+            JSONObject image = (JSONObject) jsonArray.get(x);
+            String tags2 = (String)image.get("tags");
+            String[] miniArray2 = tags2.split(", ", 5);
 
+            for (int y=0;y<miniArray2.length;y++) {
+                if (miniArray2[y].equals( chosenWord )) {
+                    chosenLink = (String) image.get("largeImageURL");
+                }
+            }
+        }
+        System.out.println(chosenLink);
+        return chosenLink;
+    }
 
+    //creates all the buttons that are on the panel
+    public void buttonCreater(){
+        int rows = 13;
+        int cols = 7;
+        buttonPanel = new JPanel(new GridLayout(rows, cols));
+        ArrayList<JButton> buttonArrayList = new ArrayList<JButton>();
+        int curr = 0;
+
+        for (int i = 1; i <= rows; i++) {
+            for (int j = 1; j <= cols; j++) {
+                buttonArrayList.add(new JButton(String.valueOf(tagOptions.get((int) (Math.random() * tagOptions.size())))));
+                buttonPanel.add(buttonArrayList.get(curr));
+                curr++;
+            }
+        }
+        for (int x = 0; x < buttonArrayList.size(); x++) {
+            buttonArrayList.get(x).addActionListener(new ButtonClickListener());
+        }
+        mainFrame.add(buttonPanel);
+
+    }
+
+    //creates an array of not repeating tags for images whose names are small enough to fit on each button
+    public void tagAdd(){
+        int n = jsonArray.size();
+        boolean inArray = false;
+        for (int x = 0; x < n; x++) {
+
+            //makes an array to split the tags from one string to a string for each tag
+            JSONObject image = (JSONObject) jsonArray.get(x);
+            String tags = (String) image.get("tags");
+            String[] miniArray = tags.split(", ", 5);
+
+            //puts all the strings from the mini array into a hashset so no words are repeated
+            for(int z=0;z<miniArray.length;z++){
+                tagOptionsHash.add(miniArray[z]);
+
+            }
+
+            //makes an array from the hash and puts them into an array list so I can use the .get command
+            String[] tagOptionsArray = tagOptionsHash.toArray(new String[0]);
+            for (int y = 0; y < tagOptionsArray.length; y++) {
+                if (tagOptionsArray[y].length()<13) {
+                    tagOptions.add(tagOptionsArray[y]);
+                }
+            }
+        }
+        System.out.println(tagOptionsHash);
+    }
 }
-//86e3fe1c1624c38b08f960ce8da64982
-
-//jlabel, image goes into that label and that's how it displays, constructor calls prepareGUI(), which is a method, image panel
-//swingcontroldemo.addimage
-//mothod add image take
-//URL url = new URL(path)
-//maybe have a default image
-//buffered image into image icon into label onto panel
-//butto click listener fopr later
